@@ -120,9 +120,9 @@ app = FastAPI()
 # se comunique con este backend.
 # Para producción, es recomendable restringir los orígenes.
 origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:5173",  # Puerto común para Vite
+    "https://frontend-z4m6yiabba-uc.a.run.app",
+    "https://frontend-331675594740.us-central1.run.app",
+    "https://admision.aimaralab.com" #para despliegue
 ]
 
 app.add_middleware(
