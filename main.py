@@ -123,7 +123,8 @@ origins = [
     "https://4173-cs-7a8e600b-3c2e-4a75-a8eb-16c7d845a23a.cs-us-east1-yeah.cloudshell.dev",
     "https://frontend-z4m6yiabba-uc.a.run.app",
     "https://frontend-331675594740.us-central1.run.app",
-    "https://admision.aimaralab.com" #para despliegue
+    #"https://admision.aimaralab.com",No funcional ahora
+    "https://chat.aimaralab.com" #para despliegue
 ]
 
 app.add_middleware(
