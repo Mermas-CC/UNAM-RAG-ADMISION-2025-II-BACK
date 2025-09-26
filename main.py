@@ -98,6 +98,24 @@ else:
     print(f"📂 Encontrado un índice existente en '{PERSIST_DIR}'. Cargándolo...")
     db = chromadb.PersistentClient(path=PERSIST_DIR)
     chroma_collection = db.get_or_create_collection("admision_unap")
+    
+    # Debug: Verificar contenido de la colección
+    try:
+        collection_count = chroma_collection.count()
+        print(f"🔍 DEBUG: Documentos en ChromaDB al cargar: {collection_count}")
+        
+        if collection_count > 0:
+            # Intentar obtener algunos documentos para verificar
+            sample_docs = chroma_collection.peek(limit=3)
+            print(f"🔍 DEBUG: Muestra de documentos: {len(sample_docs['ids'])} encontrados")
+            if sample_docs['documents']:
+                print(f"🔍 DEBUG: Primer documento (primeros 100 chars): {sample_docs['documents'][0][:100]}...")
+        else:
+            print("⚠️  WARNING: La colección está vacía!")
+            
+    except Exception as e:
+        print(f"❌ Error verificando ChromaDB: {e}")
+    
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     index = VectorStoreIndex.from_vector_store(
         vector_store,
@@ -108,7 +126,7 @@ else:
 
 # --- 4. CONFIGURAR MOTOR DE CONSULTAS ---
 print("🚀 Configurando motor de consultas RAG...")
-query_engine = index.as_query_engine(similarity_top_k=5)
+query_engine = index.as_query_engine(similarity_top_k=7)
 
 print("✅ Sistema RAG listo para consultas.")
 
@@ -326,9 +344,70 @@ Nunca uses expresiones en segunda persona como “¿Quieres...?”, “¿Te gust
 
 def generar_respuesta_stream(pregunta: str, historial: list):
     # Recuperar contexto: los top-k chunks relevantes
-    resultado = query_engine.query(pregunta)
+    print("\n" + "="*80)
+    print(f"🔍 NUEVA CONSULTA: {pregunta}")
+    print("="*80)
+    
+    # Debug: Verificar si el query_engine está funcionando
+    try:
+        print(f"🔍 DEBUG: Ejecutando query...")
+        resultado = query_engine.query(pregunta)
+        print(f"🔍 DEBUG: Tipo de resultado: {type(resultado)}")
+        print(f"🔍 DEBUG: Resultado tiene source_nodes: {hasattr(resultado, 'source_nodes')}")
+        
+        if hasattr(resultado, 'source_nodes'):
+            print(f"🔍 DEBUG: Número de source_nodes: {len(resultado.source_nodes)}")
+            if len(resultado.source_nodes) == 0:
+                print("⚠️  WARNING: No se encontraron source_nodes")
+                # Verificar si hay documentos en el índice
+                try:
+                    # Intentar acceder al vector store para diagnóstico
+                    collection_count = chroma_collection.count()
+                    print(f"🔍 DEBUG: Documentos en ChromaDB: {collection_count}")
+                except Exception as e:
+                    print(f"❌ Error accediendo a ChromaDB: {e}")
+        
+    except Exception as e:
+        print(f"❌ Error ejecutando query: {e}")
+        print(f"❌ Tipo de error: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        # Crear resultado vacío para continuar
+        class EmptyResult:
+            def __init__(self):
+                self.source_nodes = []
+        resultado = EmptyResult()
+    
+    # Mostrar chunks recuperados en terminal
+    source_nodes = getattr(resultado, 'source_nodes', [])
+    print(f"\n📚 CHUNKS RECUPERADOS ({len(source_nodes)} encontrados):")
+    print("-"*60)
+    
+    for i, node in enumerate(source_nodes, 1):
+        print(f"\n🔸 CHUNK #{i}:")
+        print(f"   Score: {getattr(node, 'score', 'N/A')}")
+        # Mostrar las primeras 200 caracteres del chunk
+        node_text = getattr(node, 'node', node)
+        if hasattr(node_text, 'text'):
+            text_content = node_text.text
+        elif hasattr(node_text, 'get_content'):
+            text_content = node_text.get_content()
+        else:
+            text_content = str(node_text)
+        
+        text_preview = text_content[:200] + "..." if len(text_content) > 200 else text_content
+        print(f"   Contenido: {text_preview}")
+        
+        # Mostrar metadata si está disponible
+        if hasattr(node_text, 'metadata') and node_text.metadata:
+            print(f"   Metadata: {node_text.metadata}")
+        
+        print("-"*40)
+    
+    print(f"\n✅ RESPUESTA GENERADA PARA: {pregunta}")
+    print("="*80 + "\n")
+    
     contexto = str(resultado)
-
     prompt = generar_prompt(pregunta, contexto, historial)
     yield from llamar_llm_streaming(prompt)
 
